@@ -51,6 +51,7 @@ module Mongoid::TaggableWithContext::AggregationStrategy
         tags = self.send field_name || []
         tags.each do |t|
           coll.update({:_id => t}, {'$inc' => {:value => 1}}, :upsert => true)
+          update_tag_counter(t, context, 1)
         end
       end
     end
@@ -62,6 +63,7 @@ module Mongoid::TaggableWithContext::AggregationStrategy
         tags = self.send field_name || []
         tags.each do |t|
           coll.update({:_id => t}, {'$inc' => {:value => -1}}, :upsert => true)
+          update_tag_counter(t, context, -1)
         end
       end
     end
@@ -81,12 +83,30 @@ module Mongoid::TaggableWithContext::AggregationStrategy
 
         tags_removed.each do |t|
           coll.update({:_id => t}, {'$inc' => {:value => -1}}, :upsert => true)
+          update_tag_counter(t, context, -1)
         end
 
         tags_added.each do |t|
           coll.update({:_id => t}, {'$inc' => {:value => 1}}, :upsert => true)
+          update_tag_counter(t, context, 1)
         end
       end
+    end
+    
+    def update_tag_counter(tag, context, val)
+      counter_model_name = self.class.tag_options_for(context)[:counter_in]
+      return unless counter_model_name
+      counter_model = self.send(counter_model_name)
+      return unless counter_model
+      counter_hash = counter_model.send(context)
+      return unless counter_hash
+      unless counter_hash[tag]
+        val == -1 ? (counter_hash[tag] = 0) : (counter_hash[tag] = val)
+      else
+        counter_hash[tag] += val
+      end  
+      counter_model.send("#{context}=", counter_hash)
+      counter_model.save!
     end
   end
 end
