@@ -51,7 +51,7 @@ describe Mongoid::TaggableWithContext do
     end
     
     it "should increment the tag counter on creation" do
-      @m.counter.artists_with_weight.should == [
+      @counter.artists_with_weight.should == [
         ["a-ha", 1],
         ["u2", 1]
       ]
@@ -60,7 +60,7 @@ describe Mongoid::TaggableWithContext do
     it "should increment the tag counter on adding tag" do
       @m.artists = "a-ha u2 jackson-five"
       @m.save
-      @m.counter.artists_with_weight.should == [
+      @counter.artists_with_weight.should == [
         ["a-ha", 1],
         ["u2", 1],
         ["jackson-five", 1]
@@ -70,7 +70,7 @@ describe Mongoid::TaggableWithContext do
     it "should decrement the tag counter on removing tag" do
       @m.artists = "a-ha jackson-five"
       @m.save
-      @m.counter.artists_with_weight.should == [
+      @counter.artists_with_weight.should == [
         ["a-ha", 1],
         ["u2", 0],
         ["jackson-five", 1]
@@ -79,7 +79,7 @@ describe Mongoid::TaggableWithContext do
     
     it "should decrease the tag counter when a record is destroyed" do
       @m.destroy
-      @m.counter.artists_with_weight.should == [
+      @counter.artists_with_weight.should == [
         ["a-ha", 0],
         ["u2", 0]
       ]
@@ -87,26 +87,50 @@ describe Mongoid::TaggableWithContext do
     
     it "should increase and decrease for more than one record" do
       @m2 = M3.create(:counter => @counter, :artists => "a-ha u2")
-      @m.counter.artists_with_weight.should == [
+      @counter.artists_with_weight.should == [
         ["a-ha", 2],
         ["u2", 2]
       ]
       @m2.destroy
-      @m.counter.artists_with_weight.should == [
+      @counter.artists_with_weight.should == [
         ["a-ha", 1],
         ["u2", 1]
       ]
     end
     
     it "should add tags with options, and update options" do
-      @m.counter.set_artists_options({"u2" => {:color => "red"}, "cash" => {:color => "#fff"}, "kiss" => {:parent => "cash", :color => "#a2a2a2"}})
-      @m.counter.save
-      @m.counter.artists_with_options.should == [
+      @counter.set_artists_options({"u2" => {:color => "red"}, "cash" => {:color => "#fff"}, "kiss" => {:parent => "cash", :color => "#a2a2a2"}})
+      @counter.save
+      @counter.artists_with_options.should == [
         ["a-ha", {:count => 1}], 
         ["u2", {:count => 1, :color => "red"}], 
         ["cash", {:count => 0, :color => "#fff"}], 
         ["kiss", {:count => 0, :parent => "cash", :color => "#a2a2a2"}]
       ]
+    end
+    
+    #
+    # very experimental
+    #
+    context "counter as tree" do
+      it "can return the tags as a tree based upon parenting" do
+        @counter.add_artists({"bono" => {:parent => "u2"}})
+        @counter.artists_as_tree.should == [
+          ["a-ha", {:count=>1}],
+          ["u2", {:count => 1, :children => [
+            ["bono", {:count => 0, :parent => "u2" }]
+          ]}]
+        ]
+      end
+      
+      it "removes parent from tags when parent is delete" do
+        @counter.add_artists({"bono" => {:parent => "u2"}})
+        @counter.remove_artists("u2")
+        @counter.artists_with_options.should == [
+          ["a-ha", {:count=>1}], 
+          ["bono", {:count=>0}]
+        ]
+      end
     end
   end
   
