@@ -3,12 +3,38 @@ module Mongoid::TaggableWithContext
     extend ActiveSupport::Concern
     
     module InstanceMethods
-      def tags_with_weight_for(tag_field)
+      def tags_with_weight_for(context)
         result = []
-        self.send(tag_field).each do |field|
-          result << [field, self.send(tag_field)[field]]
+        tags = tags_by_context(context)
+        return unless tags
+        tags.keys.each do |key|
+          result << [key, tags[key][:count]]
         end
         result
+      end
+      
+      def tags_with_options_for(context)
+        result = []
+        tags = tags_by_context(context)
+        return unless tags
+        tags.keys.each do |key|
+          result << [key, tags[key]]
+        end
+        result
+      end
+            
+      def set_tag_options(context, options={})
+        tags = tags_by_context(context)
+        options.each do |key, value|
+          tags[key] = {:count => 0} unless tags[key]
+          tag = tags[key]
+          tag.merge!(value)
+        end
+      end
+      
+      private
+      def tags_by_context(context)
+        self.send(context)
       end
     end
     
@@ -20,10 +46,20 @@ module Mongoid::TaggableWithContext
           field tag_field, :type => Hash, :default => {}
           
           class_eval <<-END
-            class << self
-              def #{tag_field}_with_weight
-                tags_with_weight_for(:"#{tag_field}")
-              end
+            def #{tag_field}_with_weight
+              tags_with_weight_for(:"#{tag_field}")
+            end
+            
+            def add_#{tag_field}(tag, options={})
+              add_tag(:#{tag_field}, tag, options)
+            end
+            
+            def set_#{tag_field}_options(options={})
+              set_tag_options(:#{tag_field}, options)
+            end
+            
+            def #{tag_field}_with_options
+              tags_with_options_for(:#{tag_field})
             end
           END
         end

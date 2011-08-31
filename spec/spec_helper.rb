@@ -17,5 +17,6 @@ RSpec.configure do |config|
 end
 
 Mongoid.configure do |config|
+  config.skip_version_check = true
   config.master = Mongo::Connection.new.db("mongoid_taggable_with_context_test")
 end

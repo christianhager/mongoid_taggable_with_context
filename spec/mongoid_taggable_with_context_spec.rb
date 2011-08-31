@@ -26,7 +26,90 @@ class M2
   taggable :artists
 end
 
+class M3
+  include Mongoid::Document
+  include Mongoid::TaggableWithContext
+  include Mongoid::TaggableWithContext::AggregationStrategy::RealTime
+  
+  belongs_to :counter
+  taggable :artists, :aggregation => true, :counter_in => :counter
+end
+
+class Counter
+  include Mongoid::Document
+  include Mongoid::TaggableWithContext
+  include Mongoid::TaggableWithContext::TagCounter
+  has_many :models, :class_name => "M3"
+  count_tags_for :artists
+end
+
 describe Mongoid::TaggableWithContext do
+  context "tag counter" do
+    before(:each) do
+      @counter = Counter.create
+      @m = M3.create(:counter => @counter, :artists => "a-ha u2")
+    end
+    
+    it "should increment the tag counter on creation" do
+      @m.counter.artists_with_weight.should == [
+        ["a-ha", 1],
+        ["u2", 1]
+      ]
+    end
+    
+    it "should increment the tag counter on adding tag" do
+      @m.artists = "a-ha u2 jackson-five"
+      @m.save
+      @m.counter.artists_with_weight.should == [
+        ["a-ha", 1],
+        ["u2", 1],
+        ["jackson-five", 1]
+      ]
+    end
+    
+    it "should decrement the tag counter on removing tag" do
+      @m.artists = "a-ha jackson-five"
+      @m.save
+      @m.counter.artists_with_weight.should == [
+        ["a-ha", 1],
+        ["u2", 0],
+        ["jackson-five", 1]
+      ]
+    end
+    
+    it "should decrease the tag counter when a record is destroyed" do
+      @m.destroy
+      @m.counter.artists_with_weight.should == [
+        ["a-ha", 0],
+        ["u2", 0]
+      ]
+    end
+    
+    it "should increase and decrease for more than one record" do
+      @m2 = M3.create(:counter => @counter, :artists => "a-ha u2")
+      @m.counter.artists_with_weight.should == [
+        ["a-ha", 2],
+        ["u2", 2]
+      ]
+      @m2.destroy
+      @m.counter.artists_with_weight.should == [
+        ["a-ha", 1],
+        ["u2", 1]
+      ]
+    end
+    
+    it "should add tags with options, and update options" do
+      @m.counter.set_artists_options({"u2" => {:color => "red"}, "cash" => {:color => "#fff"}, "kiss" => {:parent => "cash", :color => "#a2a2a2"}})
+      @m.counter.save
+      @m.counter.artists_with_options.should == [
+        ["a-ha", {:count => 1}], 
+        ["u2", {:count => 1, :color => "red"}], 
+        ["cash", {:count => 0, :color => "#fff"}], 
+        ["kiss", {:count => 0, :parent => "cash", :color => "#a2a2a2"}]
+      ]
+    end
+  end
+  
   context "saving tags from plain text" do
     before :each do
       @m = MyModel.new
