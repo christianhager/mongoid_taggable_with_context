@@ -2,7 +2,33 @@ module Mongoid::TaggableWithContext
   module TagCounter
     extend ActiveSupport::Concern
     
+    module ClassMethods
+      def count_tags_for(*args)
+
+        args.each do |tag_field|
+          
+          field tag_field, :type => Hash, :default => {}
+          
+          #instance methods
+          class_eval <<-END
+            def #{tag_field}_with_weight
+              tags_with_weight_for(:"#{tag_field}")
+            end
+            
+            def set_#{tag_field}_options(options={})
+              set_tag_options(:#{tag_field}, options)
+            end
+            
+            def #{tag_field}_with_options
+              tags_with_options_for(:#{tag_field})
+            end
+          END
+        end
+      end
+    end
+    
     module InstanceMethods
+      private
       def tags_with_weight_for(context)
         result = []
         tags = tags_by_context(context)
@@ -32,37 +58,8 @@ module Mongoid::TaggableWithContext
         end
       end
       
-      private
       def tags_by_context(context)
         self.send(context)
-      end
-    end
-    
-    module ClassMethods
-      def count_tags_for(*args)
-
-        args.each do |tag_field|
-          
-          field tag_field, :type => Hash, :default => {}
-          
-          class_eval <<-END
-            def #{tag_field}_with_weight
-              tags_with_weight_for(:"#{tag_field}")
-            end
-            
-            def add_#{tag_field}(tag, options={})
-              add_tag(:#{tag_field}, tag, options)
-            end
-            
-            def set_#{tag_field}_options(options={})
-              set_tag_options(:#{tag_field}, options)
-            end
-            
-            def #{tag_field}_with_options
-              tags_with_options_for(:#{tag_field})
-            end
-          END
-        end
       end
     end
   end
